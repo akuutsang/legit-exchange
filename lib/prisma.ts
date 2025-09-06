@@ -19,6 +19,10 @@ class MockPrismaClient {
     findMany: async () => {
       // Mock user list
       return [];
+    },
+    count: async (params: any) => {
+      // Mock count - return 0 for empty mock database
+      return 0;
     }
   };
 
@@ -38,6 +42,10 @@ class MockPrismaClient {
         title: params.data.title,
         price: params.data.price,
       };
+    },
+    count: async (params: any) => {
+      // Mock count - return 0 for empty mock database
+      return 0;
     }
   };
 
