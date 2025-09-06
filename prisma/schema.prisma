@@ -1,0 +1,240 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model with authentication
+model User {
+  id            String         @id @default(uuid())
+  name          String?
+  email         String         @unique
+  emailVerified DateTime?
+  image         String?
+  password      String
+  role          UserRole       @default(BUYER)
+  phone         String?
+  bio           String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  // Relations
+  properties    Property[]
+  sentMessages  Message[]      @relation("SentMessages")
+  receivedMessages Message[]   @relation("ReceivedMessages")
+  appointments  Appointment[]  @relation("ClientAppointments")
+  lawyerAppointments Appointment[] @relation("LawyerAppointments")
+  reviews       Review[]
+  transactions  Transaction[]  @relation("UserTransactions")
+  
+  // Lawyer specific fields
+  barNumber     String?
+  specialization String[]
+  isVerified    Boolean        @default(false)
+  verificationDocuments String[]
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  LAWYER
+  ADMIN
+}
+
+// Property model
+model Property {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  price       Float
+  type        PropertyType
+  status      PropertyStatus @default(AVAILABLE)
+  bedrooms    Int?
+  bathrooms   Int?
+  area        Float?     // in square meters
+  address     String
+  city        String
+  state       String     @default("Plateau")
+  country     String     @default("Nigeria")
+  coordinates String?    // Store as "lat,lng" for maps
+  features    String[]
+  images      String[]
+  videoTour   String?
+  isFeatured  Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  // Relations
+  ownerId     String
+  owner       User       @relation(fields: [ownerId], references: [id])
+  appointments Appointment[]
+  transactions Transaction[]
+  
+  // Indexes
+  @@index([city, state, status, type, price])
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  LAND
+  COMMERCIAL
+  OFFICE
+  OTHER
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  PENDING
+  SOLD
+  RENTED
+}
+
+// Messages between users
+model Message {
+  id          String   @id @default(uuid())
+  content     String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  senderId    String
+  sender      User     @relation("SentMessages", fields: [senderId], references: [id])
+  
+  recipientId String
+  recipient   User     @relation("ReceivedMessages", fields: [recipientId], references: [id])
+  
+  // Indexes
+  @@index([senderId, recipientId])
+}
+
+// Legal appointments
+model Appointment {
+  id          String   @id @default(uuid())
+  date        DateTime
+  status      AppointmentStatus @default(PENDING)
+  notes       String?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  clientId    String
+  client      User     @relation("ClientAppointments", fields: [clientId], references: [id])
+  
+  lawyerId    String
+  lawyer      User     @relation("LawyerAppointments", fields: [lawyerId], references: [id])
+  
+  propertyId  String?
+  property    Property? @relation(fields: [propertyId], references: [id])
+  
+  transaction Transaction?
+  
+  // Indexes
+  @@index([clientId, lawyerId, status])
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+// Reviews and ratings
+model Review {
+  id          String   @id @default(uuid())
+  rating      Int      @min(1) @max(5)
+  comment     String?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  reviewerId  String
+  reviewer    User     @relation(fields: [reviewerId], references: [id])
+  
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+  
+  // Indexes
+  @@index([propertyId])
+}
+
+// Transactions and payments
+model Transaction {
+  id          String   @id @default(uuid())
+  amount      Float
+  fee         Float    // 5% of amount
+  status      TransactionStatus @default(PENDING)
+  type        TransactionType
+  reference   String   @unique
+  paymentMethod String
+  paymentDetails Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  userId      String
+  user        User     @relation("UserTransactions", fields: [userId], references: [id])
+  
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+  
+  appointment Appointment?
+  
+  // Indexes
+  @@index([userId, status])
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum TransactionType {
+  DEPOSIT
+  FULL_PAYMENT
+  RENT
+  LEGAL_FEE
+}
+
+// Saved searches and favorites
+model SavedSearch {
+  id          String   @id @default(uuid())
+  name        String
+  criteria    Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([userId])
+}
+
+model Favorite {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+  
+  // Indexes
+  @@unique([userId, propertyId])
+  @@index([userId])
+}
