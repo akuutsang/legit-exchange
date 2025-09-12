@@ -5,11 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 
-// Import role-specific dashboard components
-import BuyerDashboard from "./components/BuyerDashboard";
-import SellerDashboard from "./components/SellerDashboard";
-import LawyerDashboard from "./components/LawyerDashboard";
-import AdminDashboard from "./components/AdminDashboard";
+// Dashboard components are defined inline below
 
 export default function DashboardPage() {
   const { user, status, isAdmin, isLawyer, isSeller, isBuyer, isLoading } = useAuth();

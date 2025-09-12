@@ -1,5 +1,21 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Property, PropertyStatus, PropertyType } from '@prisma/client';
+
+// Define the property response type
+interface PropertyResponse {
+  id: string;
+  title: string;
+  price: number;
+  type: PropertyType;
+  status: PropertyStatus;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  area?: number | null;
+  location: string;
+  city: string;
+  [key: string]: any; // For any additional properties
+}
 
 // Define types for the request query parameters
 type PropertyFilters = {
@@ -85,14 +101,18 @@ export async function GET(request: Request) {
     const skip = (page - 1) * limit;
 
     // Build orderBy clause for sorting
-    const orderBy = queryParams.sortBy && queryParams.sortOrder ? {
-      [queryParams.sortBy]: queryParams.sortOrder,
-    } : undefined;
+    const sortBy = queryParams.sortBy;
+    const sortOrder = queryParams.sortOrder;
 
-    // Execute the query with filters and pagination
+    // Execute the query
     const [properties, total] = await Promise.all([
       prisma.property.findMany({
         where,
+        skip,
+        take: limit,
+        orderBy: {
+          [sortBy]: sortOrder,
+        },
         include: {
           owner: {
             select: {
@@ -103,9 +123,6 @@ export async function GET(request: Request) {
             },
           },
         },
-        orderBy,
-        skip,
-        take: limit,
       }),
       prisma.property.count({ where }),
     ]);
@@ -115,9 +132,9 @@ export async function GET(request: Request) {
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
 
-    // Format the response
+    // Format the response with proper typing
     const response = {
-      data: properties.map(property => ({
+      data: properties.map((property: Property) => ({
         id: property.id,
         title: property.title,
         price: property.price,
@@ -128,12 +145,17 @@ export async function GET(request: Request) {
         area: property.area,
         location: property.address,
         city: property.city,
-        featured: property.featured,
-        image: '/placeholder-property.jpg', // Mock image for now
+        state: property.state,
+        country: property.country,
+        coordinates: property.coordinates,
+        features: property.features,
+        images: property.images,
+        videoTour: property.videoTour,
+        isFeatured: property.isFeatured,
         owner: property.owner,
         createdAt: property.createdAt,
         updatedAt: property.updatedAt,
-      })),
+      } as PropertyResponse)),
       meta: {
         total,
         page,
@@ -148,7 +170,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error fetching properties:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch properties' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

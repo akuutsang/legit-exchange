@@ -28,8 +28,8 @@ class MockPrismaClient {
 
   property = {
     findMany: async (params: any) => {
-      // Mock property list
-      return [];
+      // Mock property list with proper typing
+      return [] as any[];
     },
     findUnique: async (params: any) => {
       // Mock property lookup
@@ -41,6 +41,22 @@ class MockPrismaClient {
         id: 'mock-property-id',
         title: params.data.title,
         price: params.data.price,
+        type: 'APARTMENT',
+        status: 'AVAILABLE',
+        bedrooms: 2,
+        bathrooms: 2,
+        area: 100,
+        address: 'Mock Address',
+        city: 'Jos',
+        featured: false,
+        owner: {
+          id: 'mock-owner-id',
+          name: 'Mock Owner',
+          email: 'owner@example.com',
+          phone: '+2341234567890'
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
     },
     count: async (params: any) => {
