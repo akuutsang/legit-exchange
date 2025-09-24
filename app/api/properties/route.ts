@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { Property, PropertyStatus, PropertyType } from '@prisma/client';
+// Note: Avoid importing model/enums directly from Prisma to keep this route decoupled
 
 // Define the property response type
 interface PropertyResponse {
   id: string;
   title: string;
   price: number;
-  type: PropertyType;
-  status: PropertyStatus;
+  type: string;
+  status: string;
   bedrooms?: number | null;
   bathrooms?: number | null;
   area?: number | null;
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       bedrooms: searchParams.get('bedrooms') || undefined,
       status: searchParams.get('status') || undefined,
       sortBy: (searchParams.get('sortBy') as 'price' | 'createdAt') || 'createdAt',
-      sortOrder: (searchParams.get('sortBy') as 'asc' | 'desc') || 'desc',
+      sortOrder: (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc',
     };
 
     // Build the where clause for filtering
@@ -101,31 +101,29 @@ export async function GET(request: Request) {
     const skip = (page - 1) * limit;
 
     // Build orderBy clause for sorting
-    const sortBy = queryParams.sortBy;
-    const sortOrder = queryParams.sortOrder;
+    const sortBy = queryParams.sortBy ?? 'createdAt';
+    const sortOrder = queryParams.sortOrder ?? 'desc';
 
-    // Execute the query
-    const [properties, total] = await Promise.all([
-      prisma.property.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: {
-          [sortBy]: sortOrder,
-        },
-        include: {
-          owner: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-            },
+    // Execute the query (separate awaits to preserve precise types)
+    const properties = await prisma.property.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
           },
         },
-      }),
-      prisma.property.count({ where }),
-    ]);
+      },
+    });
+    const total = await prisma.property.count({ where });
 
     // Calculate pagination metadata
     const totalPages = Math.ceil(total / limit);
@@ -134,7 +132,7 @@ export async function GET(request: Request) {
 
     // Format the response with proper typing
     const response = {
-      data: properties.map((property: Property) => ({
+      data: properties.map((property) => ({
         id: property.id,
         title: property.title,
         price: property.price,
