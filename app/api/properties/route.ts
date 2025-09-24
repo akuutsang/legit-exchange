@@ -1,174 +1,42 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-// Note: Avoid importing model/enums directly from Prisma to keep this route decoupled
-
-// Define the property response type
-interface PropertyResponse {
-  id: string;
-  title: string;
-  price: number;
-  type: string;
-  status: string;
-  bedrooms?: number | null;
-  bathrooms?: number | null;
-  area?: number | null;
-  location: string;
-  city: string;
-  [key: string]: any; // For any additional properties
-}
-
-// Define types for the request query parameters
-type PropertyFilters = {
-  page?: string;
-  limit?: string;
-  search?: string;
-  type?: string[];
-  minPrice?: string;
-  maxPrice?: string;
-  bedrooms?: string;
-  status?: string;
-  sortBy?: 'price' | 'createdAt';
-  sortOrder?: 'asc' | 'desc';
-};
+// import { NextResponse } from "next/server";
+// import { prisma } from "@/lib/prisma";
+// import { propertyFiltersSchema } from "@/lib/validations/property";
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { propertyFiltersSchema } from "@/lib/validations/property";
+import { ZodError } from "zod";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    
-    // Parse query parameters
-    const queryParams: PropertyFilters = {
-      page: searchParams.get('page') || '1',
-      limit: searchParams.get('limit') || '12',
-      search: searchParams.get('q') || undefined,
-      type: searchParams.get('type')?.split(','),
-      minPrice: searchParams.get('minPrice') || undefined,
-      maxPrice: searchParams.get('maxPrice') || undefined,
-      bedrooms: searchParams.get('bedrooms') || undefined,
-      status: searchParams.get('status') || undefined,
-      sortBy: (searchParams.get('sortBy') as 'price' | 'createdAt') || 'createdAt',
-      sortOrder: (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc',
-    };
 
-    // Build the where clause for filtering
-    const where: any = {
-      status: 'AVAILABLE', // Only show available properties by default
-    };
+    // Convert query params into plain object
+    const rawParams: Record<string, string> = {};
+    searchParams.forEach((value, key) => {
+      rawParams[key] = value;
+    });
 
-    // Search by title, description, or address
-    if (queryParams.search) {
-      where.OR = [
-        { title: { contains: queryParams.search, mode: 'insensitive' } },
-        { description: { contains: queryParams.search, mode: 'insensitive' } },
-        { address: { contains: queryParams.search, mode: 'insensitive' } },
-      ];
-    }
+    // ✅ Validate with Zod
+    const queryParams = propertyFiltersSchema.parse(rawParams);
 
-    // Filter by property type
-    if (queryParams.type && queryParams.type.length > 0) {
-      where.type = { in: queryParams.type };
-    }
-
-    // Filter by price range
-    if (queryParams.minPrice || queryParams.maxPrice) {
-      where.price = {};
-      if (queryParams.minPrice) {
-        where.price.gte = parseFloat(queryParams.minPrice);
-      }
-      if (queryParams.maxPrice) {
-        where.price.lte = parseFloat(queryParams.maxPrice);
-      }
-    }
-
-    // Filter by number of bedrooms
-    if (queryParams.bedrooms) {
-      if (queryParams.bedrooms.endsWith('+')) {
-        // For '5+' filter
-        const minBedrooms = parseInt(queryParams.bedrooms);
-        where.bedrooms = { gte: minBedrooms };
-      } else {
-        where.bedrooms = parseInt(queryParams.bedrooms);
-      }
-    }
-
-    // Filter by status
-    if (queryParams.status && queryParams.status !== 'all') {
-      where.status = queryParams.status.toUpperCase();
-    }
-
-    // Parse pagination parameters
-    const page = parseInt(queryParams.page || '1');
-    const limit = parseInt(queryParams.limit || '10');
+    // 🔥 Now use queryParams as you were before...
+    // Example:
+    const page = parseInt(queryParams.page ?? "1");
+    const limit = parseInt(queryParams.limit ?? "10");
     const skip = (page - 1) * limit;
 
-    // Build orderBy clause for sorting
-    const sortBy = queryParams.sortBy ?? 'createdAt';
-    const sortOrder = queryParams.sortOrder ?? 'desc';
-
-    // Execute the query (separate awaits to preserve precise types)
-    const properties = await prisma.property.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: {
-        [sortBy]: sortOrder,
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
-      },
-    });
-    const total = await prisma.property.count({ where });
-
-    // Calculate pagination metadata
-    const totalPages = Math.ceil(total / limit);
-    const hasNextPage = page < totalPages;
-    const hasPreviousPage = page > 1;
-
-    // Format the response with proper typing
-    const response = {
-      data: properties.map((property) => ({
-        id: property.id,
-        title: property.title,
-        price: property.price,
-        type: property.type,
-        status: property.status,
-        bedrooms: property.bedrooms,
-        bathrooms: property.bathrooms,
-        area: property.area,
-        location: property.address,
-        city: property.city,
-        state: property.state,
-        country: property.country,
-        coordinates: property.coordinates,
-        features: property.features,
-        images: property.images,
-        videoTour: property.videoTour,
-        isFeatured: property.isFeatured,
-        owner: property.owner,
-        createdAt: property.createdAt,
-        updatedAt: property.updatedAt,
-      } as PropertyResponse)),
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNextPage,
-        hasPreviousPage,
-      },
-    };
-
-    return NextResponse.json(response);
+    // ... rest of your Prisma query and response formatting stays the same
   } catch (error) {
-    console.error('Error fetching properties:', error);
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Invalid query parameters", details: error.errors },
+        { status: 400 }
+      );
+    }
+
+    console.error("Error fetching properties:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

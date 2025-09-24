@@ -152,7 +152,7 @@ enum AppointmentStatus {
 // Reviews and ratings
 model Review {
   id          String   @id @default(uuid())
-  rating      Int      @min(1) @max(5)
+  rating Int
   comment     String?
   createdAt   DateTime @default(now())
   

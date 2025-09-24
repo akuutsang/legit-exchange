@@ -2,11 +2,27 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
 import { getServerSession } from "next-auth";
-import type { NextAuthOptions } from "next-auth";
+import type { NextAuthOptions, DefaultSession } from "next-auth";
+import type { User as PrismaUser } from "@prisma/client";
+
+// ✅ Extend NextAuth's Session types to include id + role
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      role: string;
+    } & DefaultSession["user"];
+  }
+
+  interface User {
+    id: string;
+    role: string;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   session: {
-    strategy: "jwt" as const,
+    strategy: "jwt",
   },
   pages: {
     signIn: "/auth/signin",
@@ -27,8 +43,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email and password are required");
         }
 
-        // For development with mock database, create a demo user
-        if (credentials.email === "demo@legitexchange.com" && credentials.password === "demo123") {
+        // ✅ Demo user for development
+        if (
+          credentials.email === "demo@legitexchange.com" &&
+          credentials.password === "demo123"
+        ) {
           return {
             id: "demo-user-id",
             name: "Demo User",
@@ -38,44 +57,47 @@ export const authOptions: NextAuthOptions = {
           };
         }
 
-        const user = await prisma.user.findUnique({
+        // ✅ Tell TS that Prisma returns a User with password
+        const user = (await prisma.user.findUnique({
           where: { email: credentials.email },
-        });
+        })) as (PrismaUser & { password: string }) | null;
 
         if (!user || !user.password) {
           throw new Error("Invalid email or password");
         }
 
-        const isPasswordValid = await compare(credentials.password, user.password);
-
+        const isPasswordValid = await compare(
+          credentials.password,
+          user.password
+        );
         if (!isPasswordValid) {
           throw new Error("Invalid email or password");
         }
 
-        // Return user object without the password
-        const { password, ...userWithoutPassword } = user as any;
+        // ✅ Return without password
+        const { password, ...userWithoutPassword } = user;
         return userWithoutPassword;
       },
     }),
   ],
   callbacks: {
-    async session({ session, token }: { session: any; token: any }) {
-      if (token) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.name = token.name;
-        session.user.email = token.email;
-        session.user.image = token.picture;
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+        session.user.name = token.name as string;
+        session.user.email = token.email as string;
+        session.user.image = token.picture as string;
       }
       return session;
     },
-    async jwt({ token, user }: { token: any; user: any }) {
+    async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
+        token.id = (user as any).id;
+        token.role = (user as any).role;
         token.name = user.name;
         token.email = user.email;
-        token.picture = user.image;
+        token.picture = (user as any).image;
       }
       return token;
     },
