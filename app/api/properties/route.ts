@@ -1,4 +1,4 @@
-// import { NextResponse } from "next/server";
+  // import { NextResponse } from "next/server";
 // import { prisma } from "@/lib/prisma";
 // import { propertyFiltersSchema } from "@/lib/validations/property";
 import { NextResponse } from "next/server";
@@ -16,10 +16,10 @@ export async function GET(request: Request) {
       rawParams[key] = value;
     });
 
-    // ✅ Validate with Zod
+    // Validate with Zod
     const queryParams = propertyFiltersSchema.parse(rawParams);
 
-    // 🔥 Now use queryParams as you were before...
+    // Now use queryParams as you were before...
     // Example:
     const page = parseInt(queryParams.page ?? "1");
     const limit = parseInt(queryParams.limit ?? "10");
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json(
-        { error: "Invalid query parameters", details: error.errors },
+        { error: "Invalid query parameters", details: error.format() },
         { status: 400 }
       );
     }
